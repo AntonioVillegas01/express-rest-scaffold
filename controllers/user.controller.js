@@ -1,45 +1,105 @@
 const {response, request} = require('express')
+const Usuario = require('../models/usuario.model')
+const bcryptjs = require("bcryptjs");
 
 
 
-const getUsuarios = (req= request, res = response) =>{
+const getUsuarios =async (req= request, res = response) =>{
 
-    const {q,nombre= 'no name',apikey} = req.query
+    const {limite = 5, desde= 0} = req.query
+
+    // parametro para regresar los docs que cumplan la condicio
+    const query = {estado:true}
+
+    /*
+    *  IMPORTANTE
+    *  PAra ejecutar las dos consultas de manera pararela
+    * Se usa la desestructuracion de arreglos
+    * */
+    const [total, usuarios] = await Promise.all([
+        Usuario.countDocuments(query),
+        Usuario.find(query)
+            .limit(Number(limite))
+            .skip(desde)
+    ])
+
 
     res.json({
-        msg:'GET Usuarios Controller',
-        q,
-        nombre,
-        apikey
+        total,
+        usuarios
     })
 }
 
-const updateUsuarios = (req, res = response) =>{
+const updateUsuarios = async (req, res = response) =>{
+
+    const {id} = req.params
+    const{_id, password, google, ...rest} = req.body;
+
+
+    // todo validar en bd
+
+    if(password) {
+        const salt = bcryptjs.genSaltSync();
+        rest.password = bcryptjs.hashSync(password, salt)
+    }
+
+    const usuario = await Usuario.findByIdAndUpdate(id, rest);
+
+
+    res.json({
+        usuario
+    })
+}
+
+const createUsuarios = async (req, res = response) =>{
+
+    try{
+        const {nombre, correo, password, rol} = req.body
+
+        const usuario = new Usuario( {
+            nombre,
+            correo,
+            password,
+            rol
+        });
+
+
+
+        const salt = bcryptjs.genSaltSync();
+        usuario.password = bcryptjs.hashSync(password, salt)
+
+        await usuario.save();
+
+
+        res.json({
+            usuario
+        })
+
+    }catch (e) {
+        console.log(e)
+        res.status(500).json({
+            msg: 'Ocurrio un Error'
+        })
+    }
+
+
+}
+
+const deleteUsuarios = async (req, res = response) =>{
 
     const {id} = req.params
 
-    res.json({
-        msg:'PUT Usuarios Controller',
-        id
-    })
-}
+    const uid = req.uid
 
-const createUsuarios = (req, res = response) =>{
+    // Borrado Fisicom
+    // const usuario = await Usuario.findByIdAndDelete(id)
 
-    const {nombre, edad} = req.body
-
-
+    // Borrado Logico
+    const usuario = await  Usuario.findByIdAndUpdate(id, {estado:false})
+    const usuarioAutenticado = req.usuario
 
     res.json({
-        msg:'POST Usuarios Controller',
-        nombre,
-        edad
-    })
-}
-
-const deleteUsuarios = (req, res = response) =>{
-    res.json({
-        msg:'DELETE Usuarios Controller'
+        usuario,
     })
 }
 
